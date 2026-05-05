@@ -7,9 +7,11 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.responses import PlainTextResponse, RedirectResponse
 
 from agent import handle_message
 from database import init_db, seen_message
+from google_oauth import build_authorize_url, handle_callback
 from tools.whatsapp import send_text
 
 load_dotenv()
@@ -113,3 +115,24 @@ async def wasender_webhook(request: Request):
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok", "bot": SPEC.get("name")}
+
+
+@app.get("/auth/google")
+async def auth_google():
+    return RedirectResponse(build_authorize_url())
+
+
+@app.get("/auth/google/callback")
+async def auth_google_callback(code: str | None = None, error: str | None = None):
+    if error:
+        return PlainTextResponse(f"OAuth error: {error}", status_code=400)
+    if not code:
+        return PlainTextResponse("Missing code", status_code=400)
+    try:
+        handle_callback(code)
+    except Exception as e:
+        logger.exception("oauth callback failed")
+        return PlainTextResponse(f"OAuth callback error: {e}", status_code=500)
+    return PlainTextResponse(
+        "Connected ✅. Tokens saved. You can close this tab and return to WhatsApp."
+    )
