@@ -4,8 +4,8 @@
   "archetype": "personal_assistant",
   "language_mode": "auto_match_user",
   "audience": {
-    "mode": "whitelist",
-    "allowed_numbers": ["+66944164300"],
+    "mode": "open",
+    "allowed_numbers": ["+66944164300", "124833811697866@lid"],
     "fallback_message": "מצטער, אני בוט אישי וזמין רק למשתמשים מורשים."
   },
   "tone": {

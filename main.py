@@ -37,10 +37,15 @@ def verify_signature(header_value: str | None) -> bool:
     return hmac.compare_digest(header_value, WEBHOOK_SECRET)
 
 
-def is_allowed(chat_id: str) -> bool:
+def is_allowed(chat_id: str, sender_phone: str | None) -> bool:
     if AUDIENCE.get("mode") != "whitelist":
         return True
-    return chat_id in AUDIENCE.get("allowed_numbers", [])
+    allowed = AUDIENCE.get("allowed_numbers", [])
+    if chat_id in allowed:
+        return True
+    if sender_phone and f"+{sender_phone}" in allowed:
+        return True
+    return False
 
 
 @app.post("/webhook/wasender")
@@ -65,25 +70,30 @@ async def wasender_webhook(request: Request):
     if seen_message(msg_id):
         return {"ok": True, "ignored": "duplicate"}
 
-    sender_phone = data.get("cleanedSenderPn") or key.get("remoteJid", "").split("@")[0]
+    sender_phone = data.get("cleanedSenderPn")
     text = data.get("messageBody")
     remote_jid = key.get("remoteJid", "")
 
     logger.info(
         "inbound msg_id=%s remoteJid=%s cleanedSenderPn=%s text_len=%s",
-        msg_id, remote_jid, data.get("cleanedSenderPn"), len(text or ""),
+        msg_id, remote_jid, sender_phone, len(text or ""),
     )
 
-    if not sender_phone or not text:
-        return {"ok": True, "ignored": "no_text_or_sender"}
+    if not remote_jid or not text:
+        return {"ok": True, "ignored": "no_text_or_jid"}
 
     if remote_jid.endswith("@g.us"):
         return {"ok": True, "ignored": "group"}
 
-    chat_id = f"+{sender_phone}"
+    # Reply to whatever JID WhatsApp gave us — preserves @lid vs @s.whatsapp.net.
+    # Wasender's /send-message accepts both phone (+E.164) and JID formats in `to`.
+    chat_id = f"+{sender_phone}" if sender_phone else remote_jid
 
-    if not is_allowed(chat_id):
-        logger.info("whitelist_reject chat_id=%s allowed=%s", chat_id, AUDIENCE.get("allowed_numbers"))
+    if not is_allowed(chat_id, sender_phone):
+        logger.info(
+            "whitelist_reject chat_id=%s remote_jid=%s allowed=%s",
+            chat_id, remote_jid, AUDIENCE.get("allowed_numbers"),
+        )
         fallback = AUDIENCE.get("fallback_message")
         if fallback:
             try:
