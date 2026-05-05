@@ -67,17 +67,23 @@ async def wasender_webhook(request: Request):
 
     sender_phone = data.get("cleanedSenderPn") or key.get("remoteJid", "").split("@")[0]
     text = data.get("messageBody")
+    remote_jid = key.get("remoteJid", "")
+
+    logger.info(
+        "inbound msg_id=%s remoteJid=%s cleanedSenderPn=%s text_len=%s",
+        msg_id, remote_jid, data.get("cleanedSenderPn"), len(text or ""),
+    )
 
     if not sender_phone or not text:
         return {"ok": True, "ignored": "no_text_or_sender"}
 
-    remote_jid = key.get("remoteJid", "")
     if remote_jid.endswith("@g.us"):
         return {"ok": True, "ignored": "group"}
 
     chat_id = f"+{sender_phone}"
 
     if not is_allowed(chat_id):
+        logger.info("whitelist_reject chat_id=%s allowed=%s", chat_id, AUDIENCE.get("allowed_numbers"))
         fallback = AUDIENCE.get("fallback_message")
         if fallback:
             try:

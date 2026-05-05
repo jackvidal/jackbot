@@ -40,6 +40,11 @@ async def _post(path: str, body: dict) -> dict:
         await asyncio.sleep(10)
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.post(f"{WASENDER_BASE}{path}", json=body, headers=headers)
+    if r.status_code >= 400:
+        logger.error(
+            "wasender %s %s -> %s body=%s response=%s",
+            "POST", path, r.status_code, body, r.text[:500],
+        )
     r.raise_for_status()
     return r.json()
 
