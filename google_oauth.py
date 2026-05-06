@@ -28,8 +28,18 @@ CLIENT_CONFIG = {
 }
 
 
-def build_authorize_url(state: str = "default") -> str:
+def _make_flow() -> Flow:
     flow = Flow.from_client_config(CLIENT_CONFIG, scopes=SCOPES, redirect_uri=REDIRECT_URI)
+    # We're a confidential client (have client_secret) and the auth/callback
+    # routes are stateless — disable PKCE so we don't have to persist the
+    # code_verifier across requests. The client_secret already authenticates
+    # the token exchange.
+    flow.autogenerate_code_verifier = False
+    return flow
+
+
+def build_authorize_url(state: str = "default") -> str:
+    flow = _make_flow()
     auth_url, _ = flow.authorization_url(
         access_type="offline",
         include_granted_scopes="true",
@@ -40,7 +50,7 @@ def build_authorize_url(state: str = "default") -> str:
 
 
 def handle_callback(code: str) -> Credentials:
-    flow = Flow.from_client_config(CLIENT_CONFIG, scopes=SCOPES, redirect_uri=REDIRECT_URI)
+    flow = _make_flow()
     flow.fetch_token(code=code)
     creds = flow.credentials
     save_oauth_tokens(
